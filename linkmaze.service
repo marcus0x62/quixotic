@@ -1,0 +1,10 @@
+[Unit]
+Description=Linkmaze
+
+[Service]
+ExecStart=/usr/local/bin/linkmaze --train /PATH/TO/CONTENT
+DynamicUser=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
