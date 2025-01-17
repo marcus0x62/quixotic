@@ -30,6 +30,7 @@ use html5ever::driver::ParseOpts;
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{parse_document, serialize};
+use rand::Rng;
 use walkdir::WalkDir;
 
 use quixotic::{
@@ -41,6 +42,8 @@ use quixotic::{
 struct Args {
     #[arg(long, default_value_t = false)]
     embed_linkmaze: bool,
+    #[arg(long, default_value_t = 0.40)]
+    scramble_images: f32,
     #[arg(long)]
     linkmaze_path: Option<String>,
     #[arg(short, long)]
@@ -57,6 +60,7 @@ fn main() -> Result<(), Error> {
     let args = Args::parse();
 
     let mut res = train(args.train.unwrap_or(args.input.clone()))?;
+    let mut images = vec![];
 
     for entry in WalkDir::new(&args.input) {
         let path = match entry {
@@ -74,6 +78,13 @@ fn main() -> Result<(), Error> {
             continue;
         } else if !path.file_type().is_file() {
             continue;
+        }
+
+        // Build a list of images to use in random substitution
+        match path.path().extension().unwrap().to_str() {
+            Some("png") | Some("gif") | Some("svg") | Some("jpg") | Some("jpeg") | Some("webp")
+            | Some("avif") => images.push(path.path().to_owned()),
+            _ => {}
         }
 
         let output_buf = match path.path().extension().unwrap().to_str() {
@@ -107,6 +118,18 @@ fn main() -> Result<(), Error> {
                 }
 
                 output_lines.join("\n")
+            }
+            Some("png") | Some("gif") | Some("svg") | Some("jpg") | Some("jpeg") | Some("webp")
+            | Some("avif")
+                if args.scramble_images > 0.00 =>
+            {
+                let mut rng = rand::thread_rng();
+                if rng.gen::<f32>() > args.scramble_images {
+                    copy(path.path(), &output_file)?;
+                } else {
+                    copy(images[rng.gen_range(0..images.len())].clone(), &output_file)?;
+                }
+                continue;
             }
             _ => {
                 copy(path.path(), &output_file)?;
