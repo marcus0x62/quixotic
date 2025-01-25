@@ -5,6 +5,7 @@ static websites to make the content less useful to bots and LLMs.  More informat
 are [on the web page](https://marcusb.org/hacks/quixotic.html)
 
 # What's New
+* January-25-2025: Fixed a bug related to extension-less files.  Documented MSRV.
 * January-17-2025: add support (enabled by default) for image
   scrambling. This works by substituting images randomly (by default,
   around 40% of the images in your input directory should be selected

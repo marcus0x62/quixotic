@@ -81,13 +81,13 @@ fn main() -> Result<(), Error> {
         }
 
         // Build a list of images to use in random substitution
-        match path.path().extension().unwrap().to_str() {
+        match path.path().extension().unwrap_or_default().to_str() {
             Some("png") | Some("gif") | Some("svg") | Some("jpg") | Some("jpeg") | Some("webp")
             | Some("avif") => images.push(path.path().to_owned()),
             _ => {}
         }
 
-        let output_buf = match path.path().extension().unwrap().to_str() {
+        let output_buf = match path.path().extension().unwrap_or_default().to_str() {
             Some("html") => {
                 let contents = read_to_string(path.path())?;
                 transform_html(
