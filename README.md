@@ -4,6 +4,10 @@
 static websites to make the content less useful to bots and LLMs.  More information and instructions
 are [on the web page](https://marcusb.org/hacks/quixotic.html)
 
+# MSRV
+
+ You'll need 1.81.0 or later to build Quixotic.
+
 # What's New
 * January-25-2025: Fixed a bug related to extension-less files.  Documented MSRV.
 * January-17-2025: add support (enabled by default) for image
