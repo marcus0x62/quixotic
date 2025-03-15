@@ -15,7 +15,7 @@ path = "src/bin/quixotic.rs"
 actix-web = "4.9.0"
 clap = { version = "4.5.23", features = ["derive"] }
 html5ever = "0.29.0"
-markup5ever = "0.14.0"
+markup5ever = "0.15.0"
 rand = "0.8.5"
 tendril = "0.4.3"
 walkdir = "2.5.0"
