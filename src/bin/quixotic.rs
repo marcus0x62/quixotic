@@ -123,11 +123,14 @@ fn main() -> Result<(), Error> {
             | Some("avif")
                 if args.scramble_images > 0.00 =>
             {
-                let mut rng = rand::thread_rng();
-                if rng.gen::<f32>() > args.scramble_images {
+                let mut rng = rand::rng();
+                if rng.random::<f32>() > args.scramble_images {
                     copy(path.path(), &output_file)?;
                 } else {
-                    copy(images[rng.gen_range(0..images.len())].clone(), &output_file)?;
+                    copy(
+                        images[rng.random_range(0..images.len())].clone(),
+                        &output_file,
+                    )?;
                 }
                 continue;
             }

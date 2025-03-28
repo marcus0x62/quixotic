@@ -59,8 +59,8 @@ impl<T: Clone + Default + Display + Eq + Hash + PartialEq> MarkovIterator<T> {
     fn random_token(&self) -> Option<T> {
         let tokens = self.chain.keys().count();
 
-        let mut rng = rand::thread_rng();
-        let idx = rng.gen_range(0..tokens);
+        let mut rng = rand::rng();
+        let idx = rng.random_range(0..tokens);
 
         self.chain.keys().nth(idx).cloned()
     }
@@ -77,7 +77,7 @@ impl<T: Clone + std::fmt::Debug + Default + Display + Eq + Hash> Iterator for Ma
 
             let token = self.current_token.clone()?;
 
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
 
             let Some(links) = self.chain.get(&token) else {
                 self.current_token = None;
@@ -89,7 +89,7 @@ impl<T: Clone + std::fmt::Debug + Default + Display + Eq + Hash> Iterator for Ma
                 continue;
             }
 
-            let next_token = links[rng.gen_range(0..links.len())].clone();
+            let next_token = links[rng.random_range(0..links.len())].clone();
 
             self.current_token = Some(next_token);
             return Some(token);

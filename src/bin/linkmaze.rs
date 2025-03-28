@@ -65,12 +65,12 @@ async fn maze(
     let uri = path.into_inner();
     let mut res = format!("<!doctype html><html lang=en><head><title>{uri}</title></head><body>");
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut tokens = vec![];
     match markov.lock() {
         Ok(mut markov) => {
-            for _ in 0..rng.gen_range(250..12500) {
+            for _ in 0..rng.random_range(250..12500) {
                 tokens.push(markov.next().unwrap());
             }
         }

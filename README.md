@@ -9,6 +9,7 @@ are [on the web page](https://marcusb.org/hacks/quixotic.html)
  You'll need 1.81.0 or later to build Quixotic.
 
 # What's New
+* March-28-2025: Bump dependencies to fix issue #4. Change rand call sites to use new API names.
 * January-25-2025: Fixed a bug related to extension-less files.  Documented MSRV.
 * January-17-2025: add support (enabled by default) for image
   scrambling. This works by substituting images randomly (by default,
