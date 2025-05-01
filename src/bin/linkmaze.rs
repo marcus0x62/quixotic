@@ -38,6 +38,10 @@ struct Args {
     listen_port: u16,
     #[arg(long, default_value_t = String::from("0.0.0.0"))]
     listen_addr: String,
+    #[arg(long)]
+    large_file_path: Option<String>,
+    #[arg(long, default_value_t = 0.20)]
+    large_file_percent: f32,
 }
 
 #[actix_web::main]
@@ -49,6 +53,8 @@ async fn main() -> Result<(), std::io::Error> {
         App::new()
             .app_data(web::Data::new(args.linkpath.clone()))
             .app_data(web::Data::new(Arc::new(Mutex::new(markov))))
+            .app_data(web::Data::new(args.large_file_path.clone()))
+            .app_data(web::Data::new(args.large_file_percent.clone()))
             .service(maze)
     })
     .bind((args.listen_addr, args.listen_port))?
@@ -61,6 +67,8 @@ async fn maze(
     path: web::Path<String>,
     linkpath: web::Data<String>,
     markov: web::Data<Arc<Mutex<MarkovIterator<String>>>>,
+    large_file_path: web::Data<Option<String>>,
+    large_file_percent: web::Data<f32>,
 ) -> HttpResponse {
     let uri = path.into_inner();
     let mut res = format!("<!doctype html><html lang=en><head><title>{uri}</title></head><body>");
@@ -80,6 +88,9 @@ async fn maze(
         }
     }
 
+    let inject_large_file = large_file_path.is_some() && rand::random::<f32>() < large_file_percent.abs();
+    let mut large_file_injected = false;
+
     let mut in_p = false;
     for (i, token) in tokens.iter().enumerate() {
         if i == 0 || rand::random::<f32>() < 0.05 && !in_p {
@@ -93,10 +104,23 @@ async fn maze(
 
         if rand::random::<f32>() < 0.02 {
             let rand_link = quixotic::rand_link();
-            res.push_str(&format!(
-                "<a href=/{}/{rand_link}.html>{rand_link}</a>",
-                *linkpath
-            ));
+            // at max once per page, with a 0.3 probability, make the link point to a file that
+            // decompresses to large output on the client
+            let large_file = large_file_path.as_ref().clone().unwrap();
+            if inject_large_file && !large_file_injected && rand::random::<f32>() < 0.3 {
+                res.push_str(&format!(
+                    "<a href={}>{rand_link}</a>",
+                    large_file
+                ));
+                eprintln!("injected large file path {large_file} into {uri}");
+                large_file_injected = true;
+            }
+            else {
+                res.push_str(&format!(
+                    "<a href=/{}/{rand_link}.html>{rand_link}</a>",
+                    *linkpath
+                ));
+            }
         }
 
         if i == tokens.len() - 1 {
