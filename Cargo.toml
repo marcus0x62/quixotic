@@ -12,10 +12,11 @@ name = "quixotic"
 path = "src/bin/quixotic.rs"
 
 [dependencies]
-actix-web = "4.9"
+actix-web = "4.11"
+bytes = "1.10"
 clap = { version = "4.5", features = ["derive"] }
-html5ever = "0.30"
-markup5ever = "0.15"
+html5ever = "0.35"
+markup5ever = "0.35"
 rand = "0.9"
 tendril = "0.4"
 walkdir = "2.5"
