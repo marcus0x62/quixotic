@@ -110,7 +110,7 @@ fn main() -> Result<(), Error> {
                             let Some(tok) = res.next() else {
                                 panic!("could not generate token!");
                             };
-                            output_line.push(tok);
+                            output_line.push(std::sync::Arc::unwrap_or_clone(tok));
                         }
                     }
 

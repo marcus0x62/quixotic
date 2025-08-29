@@ -412,7 +412,7 @@ impl TreeSink for RcDom {
         let mut new_children = new_parent.children.borrow_mut();
         for child in children.iter() {
             let previous_parent = child.parent.replace(Some(Rc::downgrade(new_parent)));
-            assert!(Rc::ptr_eq(
+            debug_assert!(Rc::ptr_eq(
                 node,
                 &previous_parent.unwrap().upgrade().expect("dangling weak")
             ))
@@ -546,6 +546,7 @@ impl Serialize for SerializableHandle<'_> {
         let percent = self.2.percent;
         let embed_linkmaze = self.2.embed_linkmaze;
         let linkmaze_path = self.2.linkmaze_path.clone().unwrap_or_default();
+        let mut rng = rand::rng();
 
         let mut ops = VecDeque::new();
         match traversal_scope {
@@ -575,7 +576,7 @@ impl Serialize for SerializableHandle<'_> {
                         use markup5ever::{LocalName, Namespace};
 
                         if embed_linkmaze && name.local == *"body" {
-                            let link = crate::rand_link();
+                            let link = crate::rand_link(&mut rng);
                             serializer.start_elem(
                                 QualName::new(None, Namespace::from(""), LocalName::from("a")),
                                 vec![(
@@ -615,7 +616,7 @@ impl Serialize for SerializableHandle<'_> {
                                 let Some(next) = markov.next() else {
                                     continue;
                                 };
-                                output.push(next);
+                                output.push(std::sync::Arc::unwrap_or_clone(next));
                             }
                         }
 

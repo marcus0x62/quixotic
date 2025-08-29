@@ -17,67 +17,102 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use std::{cmp::PartialEq, collections::HashMap, fmt::Display, fs::read_to_string, hash::Hash, io};
+use std::{
+    cmp::PartialEq, collections::HashMap, fmt::Display, fs::read_to_string, hash::Hash, sync::Arc,
+};
 
 use rand::Rng;
 use walkdir::WalkDir;
 
 use crate::rcdom::tokenize_html;
 
+#[derive(Clone)]
 pub struct MarkovIterator<T> {
-    current_token: Option<T>,
-    chain: HashMap<T, Vec<T>>,
+    tokens: Vec<Arc<T>>,
+    current_token: Option<Arc<T>>,
+    chain: HashMap<Arc<T>, Vec<Arc<T>>>,
 }
 
-impl<T: Clone + Default + Display + Eq + Hash + PartialEq> MarkovIterator<T> {
-    pub fn new(tokens: impl Iterator<Item = T>) -> Result<MarkovIterator<T>, io::Error> {
-        let mut chain = HashMap::<T, Vec<T>>::new();
+impl<T: Clone + Eq + Hash + PartialEq> MarkovIterator<T> {
+    pub fn new(tokens: impl Iterator<Item = T>) -> MarkovIterator<T> {
+        let mut markov = Self {
+            chain: HashMap::<Arc<T>, Vec<Arc<T>>>::new(),
+            current_token: None,
+            tokens: tokens.map(|x| Arc::new(x)).collect(),
+        };
 
-        let mut last = T::default();
-        for (i, token) in tokens.enumerate() {
+        let mut last = markov.tokens[0].clone();
+        for i in 0..markov.tokens.len() {
             if i == 0 {
-                last = token;
                 continue;
             }
 
-            if let Some(links) = chain.get_mut(&last) {
-                links.push(token.clone());
+            if let Some(links) = markov.chain.get_mut(&last) {
+                links.push(markov.tokens[i].clone());
             } else {
-                chain.insert(last, vec![token.clone()]);
+                markov.chain.insert(last, vec![markov.tokens[i].clone()]);
             }
 
-            last = token;
+            last = markov.tokens[i].clone();
         }
 
-        Ok(Self {
-            current_token: None,
-            chain,
-        })
+        markov
     }
 
-    fn random_token(&self) -> Option<T> {
+    fn random_token(&self) -> Arc<T> {
         let tokens = self.chain.keys().count();
 
         let mut rng = rand::rng();
         let idx = rng.random_range(0..tokens);
 
-        self.chain.keys().nth(idx).cloned()
+        loop {
+            let Some(tok) = self.chain.keys().nth(idx).cloned() else {
+                continue;
+            };
+            return tok;
+        }
+    }
+
+    pub fn n_tokens(&self, n: u32) -> Vec<Arc<T>> {
+        let mut tokens = vec![];
+        let mut rng = rand::rng();
+        let mut current_token = self.random_token();
+        for _ in 0..n {
+            let Some(links) = self.chain.get(&current_token) else {
+                current_token = self.random_token();
+                continue;
+            };
+
+            if links.is_empty() {
+                current_token = self.random_token();
+                continue;
+            }
+
+            let next_token = links[rng.random_range(0..links.len())].clone();
+
+            tokens.push(current_token);
+            current_token = next_token;
+        }
+
+        tokens
     }
 }
 
-impl<T: Clone + std::fmt::Debug + Default + Display + Eq + Hash> Iterator for MarkovIterator<T> {
-    type Item = T;
+impl<T: Clone + std::fmt::Debug + Display + Eq + Hash> Iterator for MarkovIterator<T> {
+    type Item = Arc<T>;
 
-    fn next(&mut self) -> Option<T> {
+    fn next(&mut self) -> Option<Arc<T>> {
+        let mut rng = rand::rng();
+
         loop {
-            while self.current_token.is_none() {
-                self.current_token = self.random_token();
+            if self.current_token.is_none() {
+                self.current_token = Some(self.random_token());
             }
 
-            let token = self.current_token.clone()?;
-
-            let mut rng = rand::rng();
+            let Some(token) = self.current_token.clone() else {
+                self.current_token = None;
+                continue;
+            };
 
             let Some(links) = self.chain.get(&token) else {
                 self.current_token = None;
@@ -142,7 +177,7 @@ pub fn train(input: String) -> Result<MarkovIterator<String>, std::io::Error> {
         }
     }
 
-    MarkovIterator::new(tokens.into_iter())
+    Ok(MarkovIterator::new(tokens.into_iter()))
 }
 
 #[cfg(test)]
@@ -175,7 +210,7 @@ mod tests {
             }
         }
 
-        let mut res = MarkovIterator::new(tokens.into_iter())?;
+        let mut res = MarkovIterator::new(tokens.into_iter());
 
         for _ in 0..1_000_000 {
             let tok = res.next();

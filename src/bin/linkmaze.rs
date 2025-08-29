@@ -19,10 +19,13 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-use actix_web::{get, http::header::ContentType, web, App, HttpResponse, HttpServer, Result};
+use actix_web::{
+    get, http::header::ContentType, web, App, HttpResponse, HttpServer, Responder, Result,
+};
+use bytes::{BufMut, BytesMut};
 use clap::Parser;
 use rand::Rng;
-use std::{process::exit, sync::{Arc, Mutex}};
+use std::process::exit;
 
 use quixotic::markov::{train, MarkovIterator};
 
@@ -56,11 +59,12 @@ async fn main() -> Result<(), std::io::Error> {
         exit(1);
     }
 
+    let markov = train(args.train)?;
+
     HttpServer::new(move || {
-        let markov = train(args.train.clone()).unwrap();
         App::new()
             .app_data(web::Data::new(args.linkpath.clone()))
-            .app_data(web::Data::new(Arc::new(Mutex::new(markov))))
+            .app_data(web::Data::new(markov.clone()))
             .app_data(web::Data::new((args.min_tokens, args.max_tokens)))
             .service(maze)
     })
@@ -73,57 +77,40 @@ async fn main() -> Result<(), std::io::Error> {
 async fn maze(
     path: web::Path<String>,
     linkpath: web::Data<String>,
-    markov: web::Data<Arc<Mutex<MarkovIterator<String>>>>,
+    markov: web::Data<MarkovIterator<String>>,
     limits: web::Data<(u32, u32)>,
-) -> HttpResponse {
+) -> impl Responder {
     let uri = path.into_inner();
     let (min_tokens, max_tokens) = *limits.into_inner();
-    let mut res = format!("<!doctype html><html lang=en><head><title>{uri}</title></head><body>");
 
     let mut rng = rand::rng();
+    let n_tokens = rng.random_range(min_tokens..max_tokens);
 
-    let mut tokens = vec![];
-    match markov.lock() {
-        Ok(mut markov) => {
-            for _ in 0..rng.random_range(min_tokens..max_tokens) {
-                let Some(token) = markov.next() else {
-                    eprintln!("error getting markov token");
-                    return HttpResponse::Ok().body("internal server error");
-                };
-                tokens.push(token);
-            }
-        }
-        Err(e) => {
-            eprintln!("error unlocking markov chain: {e:?}");
-            return HttpResponse::Ok().body("internal server error");
+    let mut res = BytesMut::with_capacity(n_tokens as usize * 12);
+    res.put(&b"<!doctype html><html lang=en><head><title>"[..]);
+    res.put(uri.as_bytes());
+    res.put(&b"</title></head><body><p>"[..]);
+
+    let tokens = markov.n_tokens(n_tokens);
+
+    for token in tokens {
+        let r = rng.random::<u8>();
+        res.put(&b" "[..]);
+        res.put(token.as_bytes());
+        if r < 5 {
+            res.put(&b".</p><p>"[..]);
+        } else if r < 10 {
+            let rand_link = quixotic::rand_link(&mut rng);
+            res.put(&b" <a href=/"[..]);
+            res.put(linkpath.as_bytes());
+            res.put(&b"/"[..]);
+            res.put(rand_link.as_bytes());
+            res.put(&b".html>"[..]);
+            res.put(rand_link.as_bytes());
+            res.put(&b"</a>"[..]);
         }
     }
 
-    let mut in_p = false;
-    for (i, token) in tokens.iter().enumerate() {
-        if i == 0 || rand::random::<f32>() < 0.05 && !in_p {
-            res.push_str("<p>");
-            in_p = true;
-        }
-        res.push_str(&format!(" {token}"));
-        if i != tokens.len() && in_p && rand::random::<f32>() < 0.05 {
-            res.push_str("</p><p>");
-        }
-
-        if rand::random::<f32>() < 0.02 {
-            let rand_link = quixotic::rand_link();
-            res.push_str(&format!(
-                "<a href=/{}/{rand_link}.html>{rand_link}</a>",
-                *linkpath
-            ));
-        }
-
-        if i == tokens.len() - 1 {
-            res.push_str("</p>");
-        }
-    }
-
-    res.push_str("</body></html>");
     HttpResponse::Ok()
         .content_type(ContentType::html())
         .body(res)
