@@ -22,7 +22,7 @@
 use actix_web::{get, http::header::ContentType, web, App, HttpResponse, HttpServer, Result};
 use clap::Parser;
 use rand::Rng;
-use std::sync::{Arc, Mutex};
+use std::{process::exit, sync::{Arc, Mutex}};
 
 use quixotic::markov::{train, MarkovIterator};
 
@@ -38,17 +38,30 @@ struct Args {
     listen_port: u16,
     #[arg(long, default_value_t = String::from("0.0.0.0"))]
     listen_addr: String,
+    #[arg(long, default_value_t = 250)]
+    min_tokens: u32,
+    #[arg(long, default_value_t = 12500)]
+    max_tokens: u32,
 }
 
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
     let args = Args::parse();
 
+    if args.min_tokens > args.max_tokens {
+        eprintln!(
+            "Error: min_tokens ({}) must be less than max_tokens ({})",
+            args.min_tokens, args.max_tokens
+        );
+        exit(1);
+    }
+
     HttpServer::new(move || {
         let markov = train(args.train.clone()).unwrap();
         App::new()
             .app_data(web::Data::new(args.linkpath.clone()))
             .app_data(web::Data::new(Arc::new(Mutex::new(markov))))
+            .app_data(web::Data::new((args.min_tokens, args.max_tokens)))
             .service(maze)
     })
     .bind((args.listen_addr, args.listen_port))?
@@ -61,8 +74,10 @@ async fn maze(
     path: web::Path<String>,
     linkpath: web::Data<String>,
     markov: web::Data<Arc<Mutex<MarkovIterator<String>>>>,
+    limits: web::Data<(u32, u32)>,
 ) -> HttpResponse {
     let uri = path.into_inner();
+    let (min_tokens, max_tokens) = *limits.into_inner();
     let mut res = format!("<!doctype html><html lang=en><head><title>{uri}</title></head><body>");
 
     let mut rng = rand::rng();
@@ -70,8 +85,12 @@ async fn maze(
     let mut tokens = vec![];
     match markov.lock() {
         Ok(mut markov) => {
-            for _ in 0..rng.random_range(250..12500) {
-                tokens.push(markov.next().unwrap());
+            for _ in 0..rng.random_range(min_tokens..max_tokens) {
+                let Some(token) = markov.next() else {
+                    eprintln!("error getting markov token");
+                    return HttpResponse::Ok().body("internal server error");
+                };
+                tokens.push(token);
             }
         }
         Err(e) => {
