@@ -468,7 +468,7 @@ impl SerializableHandle<'_> {
         percent: f32,
         embed_linkmaze: bool,
         linkmaze_path: Option<String>,
-    ) -> SerializableHandle {
+    ) -> SerializableHandle<'_> {
         SerializableHandle(
             h,
             RefCell::new(markov),
