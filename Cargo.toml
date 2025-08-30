@@ -20,3 +20,10 @@ markup5ever = "0.35"
 rand = "0.9"
 tendril = "0.4"
 walkdir = "2.5"
+
+[dev-dependencies]
+criterion = "0.7"
+
+[[bench]]
+name = "quixotic_benchmarks"
+harness = false
